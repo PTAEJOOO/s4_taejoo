@@ -89,17 +89,23 @@ def split_train_val(train, val_split):
 if args.dataset == 'cifar10':
 
     if args.grayscale:
+        def _my_view_1(x):
+            return x.view(1, 1024).t()
+        
         transform = transforms.Compose([
             transforms.Grayscale(),
             transforms.ToTensor(),
             transforms.Normalize(mean=122.6 / 255.0, std=61.0 / 255.0),
-            transforms.Lambda(lambda x: x.view(1, 1024).t())
+            transforms.Lambda(_my_view_1)
         ])
     else:
+        def _my_view_2(x):
+            return x.view(3, 1024).t()
+        
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            transforms.Lambda(lambda x: x.view(3, 1024).t())
+            transforms.Lambda(_my_view_2)
         ])
 
     # S4 is trained on sequences with no data augmentation!
@@ -187,6 +193,7 @@ class S4Model(nn.Module):
         Input x is shape (B, L, d_input)
         """
         x = self.encoder(x)  # (B, L, d_input) -> (B, L, d_model)
+        # print(x.shape)
 
         x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
         for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
@@ -363,16 +370,18 @@ def eval(epoch, dataloader, checkpoint=False):
             best_acc = acc
 
         return acc
+    
+if __name__ == "__main__":
 
-pbar = tqdm(range(start_epoch, args.epochs))
-for epoch in pbar:
-    if epoch == 0:
-        pbar.set_description('Epoch: %d' % (epoch))
-    else:
-        pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
-    train()
-    val_acc = eval(epoch, valloader, checkpoint=True)
-    eval(epoch, testloader)
-    scheduler.step()
-    # print(f"Epoch {epoch} learning rate: {scheduler.get_last_lr()}")
+    pbar = tqdm(range(start_epoch, args.epochs))
+    for epoch in pbar:
+        if epoch == 0:
+            pbar.set_description('Epoch: %d' % (epoch))
+        else:
+            pbar.set_description('Epoch: %d | Val acc: %1.3f' % (epoch, val_acc))
+        train()
+        val_acc = eval(epoch, valloader, checkpoint=True)
+        eval(epoch, testloader)
+        scheduler.step()
+        # print(f"Epoch {epoch} learning rate: {scheduler.get_last_lr()}")
 
